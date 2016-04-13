@@ -1,5 +1,6 @@
 package org.esipeng.akka.io.diameter
 
+import akka.actor.{Actor, ActorLogging, ActorRef}
 import akka.util.ByteString
 
 /**
@@ -19,14 +20,32 @@ case class DiameterMessage(header:DiameterHeader,avps:Seq[DiameterAvp]) {
   def encode():ByteString = null
 }
 
-object DiameterMessage  {
-  def decode(raw:ByteString):DiameterMessage = {
-    val rawBuffer = raw.asByteBuffer
-    val versionAndLength = rawBuffer.getInt
+class DiameterMessageBuffer(callback:ActorRef) extends Actor with ActorLogging {
+  var buffer = ByteString.empty
+  var currentLength = 0
+
+  def receive = {
+    case fragment @ ByteString => {
+      if(currentLength == 0)
+        peakMessageLength()
+      
+    }
+  }
+
+  private def peakMessageLength(): Unit = {
+    val versionAndLength = buffer.slice(0,4).asByteBuffer.getInt
     val version = (versionAndLength & 0xff000000) >> 24
     val diameterLength = versionAndLength & 0x00ffffff
+    if(version != 1)  {
+      log.error("Diameter version is not {}, not expected 1",version)
 
-    if()
+    } else  {
+      currentLength = diameterLength
+    }
+
+  }
+  def decode(raw:ByteString):DiameterMessage = {
+    null
 
   }
 
