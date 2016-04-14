@@ -28,7 +28,7 @@ class DiameterMessageBuffer(callback:ActorRef) extends Actor with ActorLogging {
     case fragment @ ByteString => {
       if(currentLength == 0)
         peakMessageLength()
-      
+
     }
   }
 
