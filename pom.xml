@@ -43,7 +43,7 @@
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
-      <version>4.11</version>
+      <version>4.12</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -56,6 +56,12 @@
       <groupId>org.scalatest</groupId>
       <artifactId>scalatest_${scala.compat.version}</artifactId>
       <version>2.2.4</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.typesafe.akka</groupId>
+      <artifactId>akka-testkit_2.11</artifactId>
+      <version>2.4.3</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -77,7 +83,6 @@
             </goals>
             <configuration>
               <args>
-                <arg>-make:transitive</arg>
                 <arg>-dependencyfile</arg>
                 <arg>${project.build.directory}/.scala_dependencies</arg>
               </args>

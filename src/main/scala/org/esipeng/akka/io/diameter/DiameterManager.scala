@@ -20,13 +20,12 @@ class DiameterManager extends Actor with ActorLogging {
 
 
 private class DiameterClientConnection(listner:ActorRef,settings:DiameterSettings) extends Actor with ActorLogging  {
-  def receive = {
-    case c @ Tcp.Connect(_,_,_,_,_) => {
-      IO(Tcp) ! c
-    }
+  implicit val system = this.context.system
 
+  def receive = {
     case CommandFailed(t ) => {
       listner ! CommandFailed(t)
+      listner ! ConnectionClosed()
       context stop self
     }
 
@@ -35,15 +34,10 @@ private class DiameterClientConnection(listner:ActorRef,settings:DiameterSetting
       val cer = DiameterBasicMessages.changeCapabilityRequest(settings)
       val tcpConnection = sender()
       tcpConnection ! Tcp.Register(self)
-      tcpConnection ! cer.encode()
+      //tcpConnection ! cer.encode()
     }
     case Tcp.Received(data) => {
-      try {
-        val cea = DiameterMessage.decode(data)
-        //check if success
-        //TODO check if success
 
-      }
     }
   }
 

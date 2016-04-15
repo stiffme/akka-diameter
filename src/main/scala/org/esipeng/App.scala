@@ -11,7 +11,6 @@ object App {
     println( "Hello World!" )
     println("concat arguments = " + foo(args))
 
-    import akka.io.Tcp
   }
 
 }

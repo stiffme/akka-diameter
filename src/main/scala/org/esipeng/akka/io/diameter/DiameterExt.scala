@@ -25,15 +25,15 @@ object Diameter extends ExtensionKey[DiameterExt] {
                     ) extends Tcp.Command
 
   object Connect  {
-    def apply(host:String,settings:DiameterSettings,port:Int=3868) = apply(new InetSocketAddress(host,port),settings)
+    def apply(host:String,settings:DiameterSettings,port:Int=3868):Connect = Connect.apply(new InetSocketAddress(host,port),settings)
   }
 
   case class Bind(listner:ActorRef,
                   endpoint:InetSocketAddress,
                   settings:DiameterSettings) extends Tcp.Command
   object Bind {
-    def apply(listener:ActorRef,settings:DiameterSettings,port:Int = 3868) = apply(listener,new InetSocketAddress(port),settings)
-    def apply(listener:ActorRef,settings:DiameterSettings,interface:String,port:Int=3868) = apply(listener,new InetSocketAddress(interface,port),settings)
+    def apply(listener:ActorRef,settings:DiameterSettings,port:Int = 3868):Bind = Bind.apply(listener,new InetSocketAddress(port),settings)
+    def apply(listener:ActorRef,settings:DiameterSettings,interface:String,port:Int):Bind = Bind.apply(listener,new InetSocketAddress(interface,port),settings)
   }
 
   case class Unbind(timeout:Duration) extends Tcp.Command
@@ -42,10 +42,9 @@ object Diameter extends ExtensionKey[DiameterExt] {
   //EVENTS
   type Event = Tcp.Event
   type Connected = Tcp.Connected; val Connected = Tcp.Connected
-  type CommandFailed = Tcp.CommandFailed; val CommandFailed = Tcp.CommandFailed
   type Bound = Tcp.Bound; val Bound = Tcp.Bound
   val UnBound = Tcp.Unbound
-  type ConnectionClosed = Tcp.ConnectionClosed
+  val Close
 }
 
 
