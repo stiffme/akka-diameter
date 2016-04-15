@@ -1,5 +1,7 @@
 package org.esipeng.akka.io.diameter
 
+import java.nio.ByteBuffer
+
 import akka.actor.{Actor, ActorLogging, ActorRef}
 import akka.util.ByteString
 
@@ -25,10 +27,24 @@ class DiameterMessageBuffer(callback:ActorRef) extends Actor with ActorLogging {
   var currentLength = 0
 
   def receive = {
-    case fragment @ ByteString => {
-      if(currentLength == 0)
-        peakMessageLength()
+    case fragment:ByteString => {
+      buffer = buffer ++ fragment
+      obtainMessage()
+    }
+  }
 
+  private def obtainMessage() :Unit = {
+    if(currentLength == 0)
+      peakMessageLength()
+
+    if(currentLength > 0 && buffer.size >= currentLength) {
+      buffer = buffer.compact
+      val message = decode(buffer.take(currentLength))
+      if(message != null) callback ! message
+
+      buffer = buffer.drop(currentLength)
+      currentLength = 0
+      obtainMessage()
     }
   }
 
@@ -44,9 +60,53 @@ class DiameterMessageBuffer(callback:ActorRef) extends Actor with ActorLogging {
     }
 
   }
-  def decode(raw:ByteString):DiameterMessage = {
-    null
+  private def decode(raw:ByteString):DiameterMessage = {
+    val source = raw.asByteBuffer
+    val versionAndLength = source.getInt
+    //skip version and Length, since it is already handled
+    val flags = source.get
+    val request = (flags & 0x80) != 0
+    val proxyable = (flags & 0x40) != 0
+    val error = (flags & 0x20) != 0
+    val retran = (flags & 0x10) != 0
+    val cmd = source.get << 16 + source.get << 8 + source.get
+    val appId = source.getInt
+    val h2h = source.getInt
+    val e2e = source.getInt
 
+    val avps:collection.mutable.ListBuffer[DiameterAvp] = collection.mutable.ListBuffer.empty[DiameterAvp]
+
+    while(source.hasRemaining)  {
+      avps += decodeAvp(source)
+    }
+    DiameterMessage(
+      DiameterHeader(request,proxyable,error,retran,cmd,appId),
+      avps
+    )
+  }
+
+  private def decodeAvp(source:ByteBuffer):DiameterAvp = {
+    var usedLength = 0
+    val avpCode = source.getInt; usedLength += 4
+    val flags = source.get ; usedLength += 1
+    val vendorSpecific = (flags & 0x80) != 0
+    val mandatory = (flags & 0x40) != 0
+    val protect = (flags & 0x20) != 0
+    val avpLength = source.get << 16 + source.get << 8 + source.get ;usedLength += 3
+    val vendorId = if(vendorSpecific) {
+
+      usedLength += 4
+      Some(source.getInt)
+    } else None
+
+    val payloadBytes = new Array[Byte](avpLength - usedLength)
+    source.get(payloadBytes)
+
+    val mod = avpLength % 4
+    if (mod != 0)
+      for( i <- 0 until 4 - mod ) source.get
+
+    DiameterAvp(avpCode,vendorSpecific,mandatory,protect,vendorId,ByteString(payloadBytes))
   }
 
   def encode(message:DiameterMessage):ByteString = {
