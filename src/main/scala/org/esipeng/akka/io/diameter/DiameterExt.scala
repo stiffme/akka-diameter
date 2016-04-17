@@ -10,6 +10,7 @@ import scala.concurrent.duration.Duration
 /**
   * Created by esipeng on 4/12/2016.
   */
+
 class DiameterExt(system:ExtendedActorSystem) extends IO.Extension{
   val manager = system.actorOf(Props[DiameterManager],"IO-DIAMETER")
 }
