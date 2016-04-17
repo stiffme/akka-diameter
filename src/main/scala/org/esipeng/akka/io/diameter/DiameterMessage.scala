@@ -19,6 +19,7 @@ case class DiameterHeader(
                            h2h:Int=0, e2e:Int=0)
 
 case class DiameterAvp(code:Int,vendorSpecific:Boolean,mandatory:Boolean,proted:Boolean,vendorId:Option[Int],payload:ByteString)  {
+  implicit  val byteOrder = ByteOrder.BIG_ENDIAN
   lazy val asInt = payload.iterator.getInt
   lazy val asString = payload.utf8String
   lazy val children = DiameterAvp.splitAvps(payload.iterator)

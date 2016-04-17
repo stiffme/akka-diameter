@@ -56,6 +56,6 @@ private object DiameterClientConnection {
 object DiameterBasicMessages  {
   def changeCapabilityRequest(settings:DiameterSettings,hostIp:String):DiameterMessage = {
     val  header = DiameterHeader(true,true,false,false,Diameter.CapabilitiesExchangeRequest,0,0,0)
-
+    null
   }
 }
