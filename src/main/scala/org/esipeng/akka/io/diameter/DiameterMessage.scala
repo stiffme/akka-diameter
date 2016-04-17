@@ -3,7 +3,8 @@ package org.esipeng.akka.io.diameter
 import java.nio.{ByteBuffer, ByteOrder}
 
 import akka.actor.{Actor, ActorLogging, ActorRef}
-import akka.util.{ByteIterator, ByteString}
+import akka.util.{ByteIterator, ByteString, ByteStringBuilder}
+import org.esipeng.akka.io.diameter.util.ByteFlagUtil
 
 /**
   * Created by esipeng on 4/12/2016.
@@ -15,13 +16,18 @@ case class DiameterHeader(
                            retransmission:Boolean,
                            commandCode:Int,
                            applicationId:Int,
-                           h2h:Int, e2e:Int)
+                           h2h:Int=0, e2e:Int=0)
 
 case class DiameterAvp(code:Int,vendorSpecific:Boolean,mandatory:Boolean,proted:Boolean,vendorId:Option[Int],payload:ByteString)
 
-case class DiameterMessage(header:DiameterHeader,avps:Seq[DiameterAvp])
+case class DiameterMessage(header:DiameterHeader,avps:Seq[DiameterAvp]) {
+  def prepareAnswer(answerAvps:Seq[DiameterAvp]): DiameterMessage =  {
+    val answerHeader = DiameterHeader(false,header.proxyable,false,false,header.commandCode,header.applicationId,header.h2h,header.e2e)
+    DiameterMessage(answerHeader,answerAvps)
+  }
+}
 
-object DiameterAvp  {
+object DiameterAvp extends ByteFlagUtil{
   implicit  val byteOrder = ByteOrder.BIG_ENDIAN
 
   def splitAvps(source:ByteIterator):Seq[DiameterAvp] =  {
@@ -38,10 +44,10 @@ object DiameterAvp  {
     val avpCode = source.getInt; usedLength += 4
     val flagsAndLength = source.getInt
     usedLength += 4
-    val flags = (flagsAndLength & 0xff000000) >> 24
-    val vendorSpecific = (flags & 0x80) != 0
-    val mandatory = (flags & 0x40) != 0
-    val protect = (flags & 0x20) != 0
+    val flags = ((flagsAndLength & 0xff000000) >> 24).toByte
+    val vendorSpecific = getFlagsFromHighest(flags,0)
+    val mandatory = getFlagsFromHighest(flags,1)
+    val protect = getFlagsFromHighest(flags,2)
 
     val avpLength:Int = flagsAndLength & 0x00ffffff
     val vendorId = if(vendorSpecific) {
@@ -59,4 +65,27 @@ object DiameterAvp  {
 
     DiameterAvp(avpCode,vendorSpecific,mandatory,protect,vendorId,ByteString(payloadBytes))
   }
+
+  def encodeAvp(avp:DiameterAvp):ByteString = {
+    val builder = new ByteStringBuilder
+    builder.putInt(avp.code)
+    val flags = generateFlagsFromHighest(avp.vendorSpecific,avp.mandatory,avp.proted)
+    val length = if(avp.vendorSpecific == false) avp.payload.size + 4 /*avp code*/+ 1/*flags*/ + 3/*length*/
+    else avp.payload.size + 4 /*avp code*/+ 1/*flags*/ + 3/*length*/ + 4 /*vendor id*/
+
+    val flagsAndLength:Int = (flags << 24) | length
+    builder.putInt(flagsAndLength)
+    if(avp.vendorSpecific)
+      builder.putInt(avp.vendorId.getOrElse(0))
+    builder ++= avp.payload
+    //padding handling
+    val mod = length % 4
+    if(mod != 0)
+      for( i <- 0 until (4 - mod)) builder += 0x0
+
+    builder.result()
+  }
+
+
+
 }

@@ -3,13 +3,14 @@ package org.esipeng.akka.io.diameter
 import java.nio.{ByteBuffer, ByteOrder}
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import akka.util.ByteString
+import akka.util.{ByteString, ByteStringBuilder}
+import org.esipeng.akka.io.diameter.util.ByteFlagUtil
 
 /**
   * Created by stiff on 2016/4/15.
   */
 
-class DiameterMessageBuffer(callback:ActorRef) extends Actor with ActorLogging {
+class DiameterMessageBufferDecoder(callback:ActorRef) extends Actor with ActorLogging with ByteFlagUtil {
   var buffer = ByteString.empty
   var currentLength = 0
   implicit val byteOrder = ByteOrder.BIG_ENDIAN
@@ -35,6 +36,7 @@ class DiameterMessageBuffer(callback:ActorRef) extends Actor with ActorLogging {
       currentLength = 0
       if(buffer.size > 0)
         obtainMessage()
+
     }
   }
 
@@ -56,11 +58,11 @@ class DiameterMessageBuffer(callback:ActorRef) extends Actor with ActorLogging {
     val versionAndLength = source.getInt
     //skip version and Length, since it is already handled
     val flagsAndCommand = source.getInt
-    val flags = (flagsAndCommand & 0xff000000) >> 24
-    val request = (flags & 0x80) != 0
-    val proxyable = (flags & 0x40) != 0
-    val error = (flags & 0x20) != 0
-    val retran = (flags & 0x10) != 0
+    val flags:Byte = ((flagsAndCommand & 0xff000000) >> 24).toByte
+    val request = getFlagsFromHighest(flags,0)
+    val proxyable = getFlagsFromHighest(flags,1)
+    val error = getFlagsFromHighest(flags,2)
+    val retran = getFlagsFromHighest(flags,3)
 
     val cmd = flagsAndCommand & 0x00ffffff
     val appId = source.getInt
@@ -73,15 +75,9 @@ class DiameterMessageBuffer(callback:ActorRef) extends Actor with ActorLogging {
       avps
     )
   }
-
-
-
-  def encode(message:DiameterMessage):ByteString = {
-    null
-  }
 }
 
-object DiameterMessageBuffer  {
-  def props(listner:ActorRef) = Props(new DiameterMessageBuffer(listner))
+object DiameterMessageBufferDecoder  {
+  def props(listner:ActorRef) = Props(new DiameterMessageBufferDecoder(listner))
 }
 

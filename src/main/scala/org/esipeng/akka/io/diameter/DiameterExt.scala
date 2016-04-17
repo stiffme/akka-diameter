@@ -23,29 +23,47 @@ object Diameter extends ExtensionKey[DiameterExt] {
   case class Connect(
                     remoteAddress:InetSocketAddress, //remote address
                     settings:DiameterSettings
-                    ) extends Tcp.Command
+                    )
 
-  object Connect  {
-    def apply(host:String,settings:DiameterSettings,port:Int=3868):Connect = Connect.apply(new InetSocketAddress(host,port),settings)
-  }
 
-  case class Bind(listner:ActorRef,
-                  endpoint:InetSocketAddress,
-                  settings:DiameterSettings) extends Tcp.Command
+  case class Bind(endpoint:InetSocketAddress,
+                  settings:DiameterSettings)
   object Bind {
-    def apply(listener:ActorRef,settings:DiameterSettings,port:Int = 3868):Bind = Bind.apply(listener,new InetSocketAddress(port),settings)
-    def apply(listener:ActorRef,settings:DiameterSettings,interface:String,port:Int):Bind = Bind.apply(listener,new InetSocketAddress(interface,port),settings)
+    def apply(settings:DiameterSettings,port:Int = 3868):Bind = Bind.apply(new InetSocketAddress(port),settings)
+    def apply(settings:DiameterSettings,interface:String,port:Int):Bind = Bind.apply(new InetSocketAddress(interface,port),settings)
   }
 
-  case class Unbind(timeout:Duration) extends Tcp.Command
+  final case class Register(actorRef:ActorRef)
+
+  case class Unbind(timeout:Duration)
   object Unbind extends Unbind(Duration.Zero)
 
   //EVENTS
-  type Event = Tcp.Event
-  type Connected = Tcp.Connected; val Connected = Tcp.Connected
-  type Bound = Tcp.Bound; val Bound = Tcp.Bound
-  val UnBound = Tcp.Unbound
-  val Close
+  final case object Bound
+  final case object Unbound
+  final case object Connected
+  final case object Closed
+
+  //diameter commands
+  final val CapabilitiesExchangeRequest = 257
+
+  //diameter avp code
+  final val VendorId = 266
+  final val HostIPAddress = 257
+  final val SupportedVendorId = 265
+  final val ProductName = 269
+  final val FirmwareRevision = 267
+  final val DestinationHost = 293
+  final val DestinationRealm = 283
+  final val DisconnectCause = 273
+  final val ExperimentalResult = 297
+  final val ExperimentalResultCode=298
+  final val OriginHost = 264
+  final val OriginRealm = 296
+  final val ResultCode = 268
+  final val SessionId=263
+  final val VendorSpecificApplicationId = 260
+
 }
 
 
