@@ -18,7 +18,13 @@ case class DiameterHeader(
                            applicationId:Int,
                            h2h:Int=0, e2e:Int=0)
 
-case class DiameterAvp(code:Int,vendorSpecific:Boolean,mandatory:Boolean,proted:Boolean,vendorId:Option[Int],payload:ByteString)
+case class DiameterAvp(code:Int,vendorSpecific:Boolean,mandatory:Boolean,proted:Boolean,vendorId:Option[Int],payload:ByteString)  {
+  lazy val asInt = payload.iterator.getInt
+  lazy val asString = payload.utf8String
+  lazy val children = DiameterAvp.splitAvps(payload.iterator)
+}
+
+
 
 case class DiameterMessage(header:DiameterHeader,avps:Seq[DiameterAvp]) {
   def prepareAnswer(answerAvps:Seq[DiameterAvp]): DiameterMessage =  {
@@ -85,6 +91,21 @@ object DiameterAvp extends ByteFlagUtil{
 
     builder.result()
   }
+
+  def apply(code: Int, vendorSpecific: Boolean, mandatory: Boolean, proted: Boolean, vendorId: Option[Int], intValue:Int): DiameterAvp = {
+    DiameterAvp(code,vendorSpecific,mandatory,proted,vendorId,(new ByteStringBuilder).putInt(intValue).result())
+  }
+
+  def apply(code: Int, vendorSpecific: Boolean, mandatory: Boolean, proted: Boolean, vendorId: Option[Int], stringValue:String): DiameterAvp = {
+    DiameterAvp(code,vendorSpecific,mandatory,proted,vendorId,(new ByteStringBuilder).putBytes(stringValue.getBytes).result())
+  }
+
+  def apply(code: Int, vendorSpecific: Boolean, mandatory: Boolean, proted: Boolean, vendorId: Option[Int], children:Seq[DiameterAvp]): DiameterAvp = {
+    val builder = new ByteStringBuilder
+    children.foreach( c => builder ++= encodeAvp(c))
+    DiameterAvp(code,vendorSpecific,mandatory,proted,vendorId,(new ByteStringBuilder).result())
+  }
+
 
 
 
