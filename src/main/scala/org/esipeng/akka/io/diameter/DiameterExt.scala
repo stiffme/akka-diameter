@@ -15,7 +15,7 @@ class DiameterExt(system:ExtendedActorSystem) extends IO.Extension{
   val manager = system.actorOf(Props[DiameterManager],"IO-DIAMETER")
 }
 
-case class DiameterSettings(originHost:String,originRealm:String,supportedVendorSpecificApps:Set[(Int,Int)])
+case class DiameterSettings(originHost:String,originRealm:String,vendorId:Int,supportedVendorSpecificApps:Set[(Int,Int)])
 
 object Diameter extends ExtensionKey[DiameterExt] {
 
@@ -63,6 +63,10 @@ object Diameter extends ExtensionKey[DiameterExt] {
   final val ResultCode = 268
   final val SessionId=263
   final val VendorSpecificApplicationId = 260
+  final val AuthApplicationId = 258
+
+  //Appid
+  final val DiameterCommonMessages = 0
 
 }
 
