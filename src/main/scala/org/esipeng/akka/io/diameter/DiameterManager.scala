@@ -41,10 +41,44 @@ private class DiameterConnection(listener:ActorRef,settings:DiameterSettings) ex
       log.debug("Connection established, remote {}, local {}",remote,local)
       val connection  = sender()
       if(initialConnection) { //send CER
-
+        DiameterBasicMessages.changeCapabilityRequest(settings,local.getAddress)
       }
       connection ! Tcp.Register(self)
+      context.become(capabilityExchangePhase(connection))
     }
+  }
+
+  def capabilityExchangePhase(connection:ActorRef):Receive = withDiameterDecodeAndEncode {
+    case message:DiameterMessage => {
+      if(message.header.commandCode != Diameter.CapabilitiesExchangeRequest)  {
+        stopConnection(connection)
+      } else  {
+        //get result code
+        val result = message.avps.filter( _.code == Diameter.ResultCode)
+        if(result.size != 1)  {
+          stopConnection(connection)
+        } else  if(result(0).asInt == 2001) {
+          log.debug("Capability exchange done from client")
+        } else  {
+          log.debug("capability exchange result is not successful {}",result(0).asInt)
+          stopConnection(connection)
+          context.become(monitoringPhase(connection))
+        }
+      }
+    }
+  }
+
+  def monitoringPhase(connection:ActorRef):Receive = withDiameterDecodeAndEncode  {
+    case message:DiameterMessage => {
+
+    }
+
+  }
+
+  def stopConnection(connection:ActorRef) :Unit = {
+    listener ! Diameter.Closed
+    connection ! Tcp.Close
+    context stop self
   }
 
 
@@ -74,7 +108,7 @@ object DiameterBasicMessages  {
   def changeCapabilityAnswer(settings:DiameterSettings,hostIp:InetAddress,request:DiameterMessage):DiameterMessage = {
     val cea = DiameterMessageBuilder.answerRequest(request)
     cea.appendAvps(generateCapabilitiesExchangeContent(settings,hostIp))
-    cea.appendAvp(DiameterAvp(Diameter.ResultCode,false,true,false,None,2011))
+    cea.appendAvp(DiameterAvp(Diameter.ResultCode,false,true,false,None,2001))
     cea.makeMessage()
   }
 
