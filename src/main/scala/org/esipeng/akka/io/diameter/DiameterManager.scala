@@ -58,11 +58,12 @@ private class DiameterConnection(listener:ActorRef,settings:DiameterSettings) ex
         if(result.size != 1)  {
           stopConnection(connection)
         } else  if(result(0).asInt == 2001) {
-          log.debug("Capability exchange done from client")
-        } else  {
-          log.debug("capability exchange result is not successful {}",result(0).asInt)
-          stopConnection(connection)
+          log.info("Capability exchange done")
+          listener ! Diameter.Connected
           context.become(monitoringPhase(connection))
+        } else  {
+          log.warning("capability exchange result is not successful {}",result(0).asInt)
+          stopConnection(connection)
         }
       }
     }
