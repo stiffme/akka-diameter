@@ -170,10 +170,10 @@ object DiameterBasicMessages  {
       )))
     })
 
-    val vendorIds = settings.supportedVendorSpecificApps.map(_._1).toSet.foreach(t => {
+    /*val vendorIds = settings.supportedVendorSpecificApps.map(_._1).foreach(t => {
       buffer += DiameterAvp(Diameter.SupportedVendorId,false,true,false,None,t)
-    })
-    buffer.toSeq
+    })*/
+    buffer
 
   }
 }
