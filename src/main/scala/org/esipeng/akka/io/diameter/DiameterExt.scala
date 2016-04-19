@@ -46,6 +46,8 @@ object Diameter extends ExtensionKey[DiameterExt] {
 
   //diameter commands
   final val CapabilitiesExchangeRequest = 257
+  final val DisconnectPeerRequest = 282
+  final val DeviceWatchdogRequest = 280
 
   //diameter avp code
   final val VendorId = 266

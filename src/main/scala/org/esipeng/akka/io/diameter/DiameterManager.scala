@@ -3,7 +3,6 @@ package org.esipeng.akka.io.diameter
 import java.net.InetAddress
 
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
-import akka.io.Tcp.CommandFailed
 import akka.io.{IO, Tcp}
 import akka.util.{ByteString, ByteStringBuilder}
 import org.esipeng.akka.io.diameter.util.DiameterMessageBuilder
@@ -11,12 +10,14 @@ import org.esipeng.akka.io.diameter.util.DiameterMessageBuilder
 /**
   * Created by esipeng on 4/12/2016.
   */
+final case class SendDiameter(message:DiameterMessage)
+
 class DiameterManager extends Actor with ActorLogging {
 
   def receive = {
     case Diameter.Connect(remote,settings) => {
       val listener = sender()
-      val connection = context.actorOf(DiameterClientConnection.props(listener,settings))
+      val connection = context.actorOf(DiameterConnection.props(listener,settings))
       connection ! Diameter.Connect(remote,settings)
     }
   }
@@ -24,8 +25,12 @@ class DiameterManager extends Actor with ActorLogging {
 
 
 private class DiameterConnection(listener:ActorRef,settings:DiameterSettings) extends Actor with ActorLogging  {
+  val internalH2H = Iterator from 10
+  val internalE2E = Iterator from 10
   implicit val system = this.context.system
   val buffer = context.actorOf(DiameterMessageBufferDecoder.props(self),"Diameter-Buffer")
+  val encoder = new DiameterMessageEncoder
+
   var initialConnection = false
   def receive = {
     case Diameter.Connect(remote,settings) => {
@@ -40,15 +45,17 @@ private class DiameterConnection(listener:ActorRef,settings:DiameterSettings) ex
     case Tcp.Connected(remote, local) => {
       log.debug("Connection established, remote {}, local {}",remote,local)
       val connection  = sender()
-      if(initialConnection) { //send CER
-        DiameterBasicMessages.changeCapabilityRequest(settings,local.getAddress)
-      }
+
       connection ! Tcp.Register(self)
       context.become(capabilityExchangePhase(connection))
+
+      if(initialConnection) { //send CER
+        self ! SendDiameter(DiameterBasicMessages.changeCapabilityRequest(settings,local.getAddress))
+      }
     }
   }
 
-  def capabilityExchangePhase(connection:ActorRef):Receive = withDiameterDecodeAndEncode {
+  def capabilityExchangePhase(connection:ActorRef):Receive = withDiameterDecodeAndEncode(connection) orElse  {
     case message:DiameterMessage => {
       if(message.header.commandCode != Diameter.CapabilitiesExchangeRequest)  {
         stopConnection(connection)
@@ -62,16 +69,35 @@ private class DiameterConnection(listener:ActorRef,settings:DiameterSettings) ex
           listener ! Diameter.Connected
           context.become(monitoringPhase(connection))
         } else  {
-          log.warning("capability exchange result is not successful {}",result(0).asInt)
+          log.warning("Capability exchange result is not successful {}",result(0).asInt)
           stopConnection(connection)
         }
       }
     }
   }
 
-  def monitoringPhase(connection:ActorRef):Receive = withDiameterDecodeAndEncode  {
+  def monitoringPhase(connection:ActorRef):Receive = withDiameterDecodeAndEncode(connection) orElse   {
+    case dpr @ DiameterMessage(DiameterHeader(true,_,_,_,Diameter.DisconnectPeerRequest,_,_,_),_) => {
+      log.info("DPR message received, answer success.")
+      val dpa = DiameterMessageBuilder.answerRequest(dpr)
+      dpa.appendAvp(DiameterAvp(Diameter.OriginHost,false,true,false,None,settings.originHost))
+        .appendAvp(DiameterAvp(Diameter.OriginRealm,false,true,false,None,settings.originRealm))
+        .appendAvp(DiameterAvp(Diameter.ResultCode,false,true,false,None,2001))
+      val answer = dpa.makeMessage()
+      self ! SendDiameter(answer)
+    }
+    case dwr @ DiameterMessage(DiameterHeader(true,_,_,_,Diameter.DeviceWatchdogRequest,_,_,_),_) => {
+      log.debug("DWR message received, answer success.")
+      val dwa = DiameterMessageBuilder.answerRequest(dwr)
+      dwa.appendAvp(DiameterAvp(Diameter.OriginHost,false,true,false,None,settings.originHost))
+        .appendAvp(DiameterAvp(Diameter.OriginRealm,false,true,false,None,settings.originRealm))
+        .appendAvp(DiameterAvp(Diameter.ResultCode,false,true,false,None,2001))
+      val answer = dwa.makeMessage()
+      self ! SendDiameter(answer)
+    }
     case message:DiameterMessage => {
-
+      //send to listener
+      listener ! message
     }
 
   }
@@ -84,15 +110,28 @@ private class DiameterConnection(listener:ActorRef,settings:DiameterSettings) ex
 
 
 
-  private def withDiameterDecodeAndEncode(receive:Receive):Receive = {
+  private def withDiameterDecodeAndEncode(connection: ActorRef):Receive = {
     //receive
     case data:ByteString => buffer ! data
+    //send
+    case SendDiameter(msg) => {
+      if(msg.header.request == true)  {
+        val encoded = encoder.encode(msg,internalH2H.next(),internalE2E.next())
+        connection ! encoded
+      } else  {
+        val encoded = encoder.encode(msg)
+        connection ! encoded
+      }
+    }
 
+    case _:Tcp.ConnectionClosed => {
+      stopConnection(connection)
+    }
   }
 
 }
 
-private object DiameterClientConnection {
+private object DiameterConnection {
   def props(listner:ActorRef,settings:DiameterSettings) = Props(new DiameterConnection(listner,settings))
 }
 
